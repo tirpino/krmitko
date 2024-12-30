@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192x192.png">
+<link rel="apple-touch-icon" href="icons/icon-192x192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="Kŕmitko">
+<meta name="description" content="Aplikácia pre ovládanie kŕmitka pre vtáky">
+
+
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Sensor Display</title>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        #sensor-values {
+            margin: 20px auto;
+            font-size: 1.2em;
+            color: #555;
+            text-align: left;
+            max-width: 600px;
+            line-height: 1.8;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 15px 32px;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            margin: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        button:active {
+            background-color: #388e3c;
+        }
+
+        input {
+            padding: 10px;
+            margin: 10px;
+            font-size: 1em;
+        }
+
+        /* Load bar styles */
+        .load-bar-container {
+            width: 100%;
+            height: 30px;
+            background-color: #f0f0f0;
+            border-radius: 15px;
+            margin-top: 20px;
+        }
+
+        .load-bar {
+            height: 100%;
+            width: 0;
+            background-color: #76c7c0;
+            border-radius: 15px;
+            transition: width 0.5s ease;
+        }
+
+        .status-text {
+            margin-top: 10px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <h1>Sensor Display and Servo Control</h1>
+        <div id="sensor-values">
+            <p>Temperature: <span id="temperature">Loading...</span> °C</p>
+            <p>Humidity: <span id="humidity">Loading...</span> %</p>
+            <p>Weight: <span id="weight">Loading...</span> %</p>
+        </div>
+        <!-- Load Bar -->
+        <div class="load-bar-container">
+            <div class="load-bar" id="load-bar"></div>
+        </div>
+        <p class="status-text" id="status-text">0% full</p>
+
+        <p id="servo-state">Servo State: Loading...</p>
+        <button onclick="toggleServo()">Toggle Servo</button>
+        <div>
+            <input type="time" id="schedule-time" />
+            <button onclick="setCustomSchedule()">Set Custom Schedule</button>
+        </div>
+    </div>
+
+    <script>
+        // Firebase konfigurácia
+        const firebaseConfig = {
+            apiKey: "AIzaSyBP5c-xzHRQZzQC0MeFKrs_lx3jn1fUY7U",
+            authDomain: "sockaofffiiii.firebaseapp.com",
+            databaseURL: "https://sockaofffiiii-default-rtdb.europe-west1.firebasedatabase.app/",
+            projectId: "sockaofffiiii",
+            storageBucket: "sockaofffiiii.appspot.com",
+            messagingSenderId: "678837659116",
+            appId: "1:678837659116:web:2a405bc904e55b86e1cc9"
+        };
+
+        // Inicializácia Firebase
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        // Aktualizuj hodnoty zo senzorov
+        const tempRef = database.ref('senzory/teplota');
+        const humRef = database.ref('senzory/vlhkost');
+        const weightRef = database.ref('senzory/hmotnost');
+
+        // Aktualizovanie hodnoty teploty
+        tempRef.on('value', (snapshot) => {
+            document.getElementById('temperature').innerText = snapshot.val() || 'N/A';
+        });
+
+        // Aktualizovanie hodnoty vlhkosti
+        humRef.on('value', (snapshot) => {
+            document.getElementById('humidity').innerText = snapshot.val() || 'N/A';
+        });
+
+        // Aktualizovanie hodnoty hmotnosti a loadbaru
+        weightRef.on('value', (snapshot) => {
+            const weight = snapshot.val();
+            const percentage = weight ? (weight / 10000) * 100 : 0; // 10000 g = 10 kg
+            document.getElementById('weight').innerText = percentage.toFixed(2) + ' %';
+            updateLoadBar(percentage); // Aktualizácia load baru
+        });
+
+        // Aktualizovanie stavu serva
+        const servoRef = database.ref('servo/state');
+
+        servoRef.on('value', (snapshot) => {
+            document.getElementById('servo-state').innerText = `Servo State: ${snapshot.val()}`;
+        });
+
+        function toggleServo() {
+            servoRef.once('value').then((snapshot) => {
+                const currentState = snapshot.val();
+                const newState = 1;
+                servoRef.set(newState);
+                setTimeout(() => {
+                    servoRef.set(currentState);
+                }, 5000);
+            });
+        }
+
+        function setCustomSchedule() {
+            const timeInput = document.getElementById('schedule-time').value;
+            if (!timeInput) {
+                alert('Please select a time.');
+                return;
+            }
+
+            const now = new Date();
+            const targetTime = new Date();
+            const [hours, minutes] = timeInput.split(':').map(Number);
+            targetTime.setHours(hours, minutes, 0, 0);
+
+            const timeDifference = targetTime - now;
+
+            if (timeDifference > 0) {
+                alert(`Servo will change at ${timeInput}.`);
+                setTimeout(() => {
+                    servoRef.once('value').then((snapshot) => {
+                        const currentState = snapshot.val();
+                        const newState = 1;
+                        servoRef.set(newState);
+                        setTimeout(() => {
+                            servoRef.set(currentState);
+                        }, 5000);
+                    });
+                }, timeDifference);
+            } else {
+                alert('The scheduled time has already passed. Please select a future time.');
+            }
+        }
+
+        // Funkcia na aktualizáciu load baru
+        function updateLoadBar(percentage) {
+            const loadBar = document.getElementById('load-bar');
+            const statusTextElement = document.getElementById('status-text');
+            loadBar.style.width = percentage + "%"; // Nastavenie šírky load baru
+            statusTextElement.textContent = Math.round(percentage) + "% full"; // Aktualizácia textu
+        }
+    </script>
+</body>
+</html>
