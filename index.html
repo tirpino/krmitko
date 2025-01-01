@@ -1,121 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
-
-    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192x192.png">
-<link rel="apple-touch-icon" href="icons/icon-192x192.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="Kŕmitko">
-<meta name="description" content="Aplikácia pre ovládanie kŕmitka pre vtáky">
-
-
-
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Firebase Sensor Display</title>
-    <!-- Firebase SDK -->
+    <title>Zásobníček</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-color: #f4f4f9;
             margin: 0;
             padding: 20px;
             text-align: center;
         }
-
-        h1 {
-            font-size: 2.5em;
-            color: #333;
-            margin-bottom: 20px;
+        .header {
+            background-color: #74121d;
+            color: white;
+            padding: 10px;
+            margin: -20px -20px 20px -20px;
         }
-
-        #sensor-values {
+        .feed-button {
+            background-color: #a51c30;
+            border: 2px solid #a7333f;
+            border-radius: 50%;
+            color: white;
+            width: 200px;
+            height: 200px;
+            font-size: 2em;
             margin: 20px auto;
-            font-size: 1.2em;
-            color: #555;
-            text-align: left;
-            max-width: 600px;
-            line-height: 1.8;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
-
-        button {
-            background-color: #4CAF50;
+        .control-buttons {
+            margin: 20px 0;
+        }
+        .control-button {
+            background-color: #a7333f;
             color: white;
             border: none;
             border-radius: 5px;
-            padding: 15px 32px;
+            padding: 10px 30px;
+            margin: 0 5px;
             font-size: 1.2em;
             cursor: pointer;
-            transition: background-color 0.3s ease;
-            margin: 10px;
         }
-
-        button:hover {
-            background-color: #45a049;
-        }
-
-        button:active {
-            background-color: #388e3c;
-        }
-
-        input {
-            padding: 10px;
+        .time-input {
+            padding: 8px;
             margin: 10px;
             font-size: 1em;
+            width: 200px;
         }
-
-        /* Load bar styles */
-        .load-bar-container {
-            width: 100%;
-            height: 30px;
-            background-color: #f0f0f0;
-            border-radius: 15px;
+        #scheduledTime {
+            color: #74121d;
+            font-size: 1.2em;
             margin-top: 20px;
         }
-
-        .load-bar {
-            height: 100%;
-            width: 0;
-            background-color: #76c7c0;
-            border-radius: 15px;
-            transition: width 0.5s ease;
-        }
-
-        .status-text {
-            margin-top: 10px;
-            font-size: 18px;
-            font-weight: bold;
+        #clickCount {
+            color: #74121d;
+            font-size: 1.2em;
+            margin-top: 20px;
         }
     </style>
 </head>
 <body>
-    <div>
-        <h1>Sensor Display and Servo Control</h1>
-        <div id="sensor-values">
-            <p>Temperature: <span id="temperature">Loading...</span> °C</p>
-            <p>Humidity: <span id="humidity">Loading...</span> %</p>
-            <p>Weight: <span id="weight">Loading...</span> %</p>
-        </div>
-        <!-- Load Bar -->
-        <div class="load-bar-container">
-            <div class="load-bar" id="load-bar"></div>
-        </div>
-        <p class="status-text" id="status-text">0% full</p>
-
-        <p id="servo-state">Servo State: Loading...</p>
-        <button onclick="toggleServo()">Toggle Servo</button>
-        <div>
-            <input type="time" id="schedule-time" />
-            <button onclick="setCustomSchedule()">Set Custom Schedule</button>
-        </div>
+    <div class="header">
+        <h1>Zásobníček</h1>
     </div>
 
+    <div class="feed-button" onclick="toggleServo()">
+        FEED
+    </div>
+
+    <div>
+        <input type="time" class="time-input" id="schedule-time" />
+        <div class="control-buttons">
+            <button class="control-button" onclick="setCustomSchedule()">SET</button>
+            <button class="control-button" onclick="resetSchedule()">RESET</button>
+        </div>
+        <div id="scheduledTime">Naplánovaný čas: Žiadny</div>
+    </div>
+
+    <div id="clickCount">FEED COUNT: 0</div>
+
     <script>
-        // Firebase konfigurácia
         const firebaseConfig = {
             apiKey: "AIzaSyBP5c-xzHRQZzQC0MeFKrs_lx3jn1fUY7U",
             authDomain: "sockaofffiiii.firebaseapp.com",
@@ -126,45 +95,36 @@
             appId: "1:678837659116:web:2a405bc904e55b86e1cc9"
         };
 
-        // Inicializácia Firebase
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
+        let scheduledTimeout;
 
-        // Aktualizuj hodnoty zo senzorov
-        const tempRef = database.ref('senzory/teplota');
-        const humRef = database.ref('senzory/vlhkost');
-        const weightRef = database.ref('senzory/hmotnost');
-
-        // Aktualizovanie hodnoty teploty
-        tempRef.on('value', (snapshot) => {
-            document.getElementById('temperature').innerText = snapshot.val() || 'N/A';
+        const today = new Date().toLocaleDateString();
+        database.ref('stats/lastResetDate').once('value', (snapshot) => {
+            const lastReset = snapshot.val();
+            if (lastReset !== today) {
+                database.ref('stats/clickCount').set(0);
+                database.ref('stats/lastResetDate').set(today);
+            }
         });
 
-        // Aktualizovanie hodnoty vlhkosti
-        humRef.on('value', (snapshot) => {
-            document.getElementById('humidity').innerText = snapshot.val() || 'N/A';
-        });
-
-        // Aktualizovanie hodnoty hmotnosti a loadbaru
-        weightRef.on('value', (snapshot) => {
-            const weight = snapshot.val();
-            const percentage = weight ? (weight / 10000) * 100 : 0; // 10000 g = 10 kg
-            document.getElementById('weight').innerText = percentage.toFixed(2) + ' %';
-            updateLoadBar(percentage); // Aktualizácia load baru
-        });
-
-        // Aktualizovanie stavu serva
-        const servoRef = database.ref('servo/state');
-
-        servoRef.on('value', (snapshot) => {
-            document.getElementById('servo-state').innerText = `Servo State: ${snapshot.val()}`;
+        database.ref('stats/clickCount').on('value', (snapshot) => {
+            document.getElementById('clickCount').innerText = 
+                `FEED COUNT: ${snapshot.val() || 0}`;
         });
 
         function toggleServo() {
+            const servoRef = database.ref('servo/state');
             servoRef.once('value').then((snapshot) => {
                 const currentState = snapshot.val();
                 const newState = 1;
                 servoRef.set(newState);
+                
+                database.ref('stats/clickCount').once('value').then((snapshot) => {
+                    const current = snapshot.val() || 0;
+                    database.ref('stats/clickCount').set(current + 1);
+                });
+
                 setTimeout(() => {
                     servoRef.set(currentState);
                 }, 5000);
@@ -174,7 +134,7 @@
         function setCustomSchedule() {
             const timeInput = document.getElementById('schedule-time').value;
             if (!timeInput) {
-                alert('Please select a time.');
+                alert('Prosím vyberte čas');
                 return;
             }
 
@@ -183,32 +143,44 @@
             const [hours, minutes] = timeInput.split(':').map(Number);
             targetTime.setHours(hours, minutes, 0, 0);
 
+            if (targetTime <= now) {
+                targetTime.setDate(targetTime.getDate() + 1);
+            }
+
             const timeDifference = targetTime - now;
 
-            if (timeDifference > 0) {
-                alert(`Servo will change at ${timeInput}.`);
-                setTimeout(() => {
-                    servoRef.once('value').then((snapshot) => {
-                        const currentState = snapshot.val();
-                        const newState = 1;
-                        servoRef.set(newState);
-                        setTimeout(() => {
-                            servoRef.set(currentState);
-                        }, 5000);
-                    });
-                }, timeDifference);
-            } else {
-                alert('The scheduled time has already passed. Please select a future time.');
+            if (scheduledTimeout) {
+                clearTimeout(scheduledTimeout);
             }
+
+            document.getElementById('scheduledTime').innerText = 
+                `Naplánovaný čas: ${timeInput}`;
+
+            database.ref('schedule/time').set(timeInput);
+
+            scheduledTimeout = setTimeout(() => {
+                toggleServo();
+                setCustomSchedule();
+            }, timeDifference);
         }
 
-        // Funkcia na aktualizáciu load baru
-        function updateLoadBar(percentage) {
-            const loadBar = document.getElementById('load-bar');
-            const statusTextElement = document.getElementById('status-text');
-            loadBar.style.width = percentage + "%"; // Nastavenie šírky load baru
-            statusTextElement.textContent = Math.round(percentage) + "% full"; // Aktualizácia textu
+        function resetSchedule() {
+            if (scheduledTimeout) {
+                clearTimeout(scheduledTimeout);
+            }
+            document.getElementById('scheduledTime').innerText = 
+                'Naplánovaný čas: Žiadny';
+            document.getElementById('schedule-time').value = '';
+            database.ref('schedule/time').remove();
         }
+
+        database.ref('schedule/time').once('value', (snapshot) => {
+            const savedTime = snapshot.val();
+            if (savedTime) {
+                document.getElementById('schedule-time').value = savedTime;
+                setCustomSchedule();
+            }
+        });
     </script>
 </body>
 </html>
