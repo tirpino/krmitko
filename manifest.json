@@ -1,22 +1,22 @@
 {
-    "name": "Kŕmitko pre vtáky",
-    "short_name": "Kŕmitko",
+    "name": "Zásobníček",
+    "short_name": "Zásobníček",
     "start_url": "./index.html",
     "display": "standalone",
-    "background_color": "#f5f5f5",
-    "theme_color": "#2196F3",
+    "background_color": "#74121d",
+    "theme_color": "#74121d",
     "orientation": "portrait",
     "icons": [
         {
-            "src": "icons/icon-192x192.png",
+            "src": "icons/paw-192.svg",
             "sizes": "192x192",
-            "type": "image/png",
+            "type": "image/svg+xml",
             "purpose": "any maskable"
         },
         {
-            "src": "icons/icon-512x512.png",
-            "sizes": "512x512",
-            "type": "image/png",
+            "src": "icons/paw-512.svg",
+            "sizes": "512x512", 
+            "type": "image/svg+xml",
             "purpose": "any maskable"
         }
     ]
